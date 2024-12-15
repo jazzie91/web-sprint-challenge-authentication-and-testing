@@ -1,59 +1,84 @@
-const router = require('express').Router();
+const express = require('express');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const db = require('../db'); 
+const router = express.Router();
+const SECRET_KEY = 'your-secret-key';  
 
-router.post('/register', (req, res) => {
-  res.end('implement register, please!');
-  /*
-    IMPLEMENT
-    You are welcome to build additional middlewares to help with the endpoint's functionality.
-    DO NOT EXCEED 2^8 ROUNDS OF HASHING!
 
-    1- In order to register a new account the client must provide `username` and `password`:
-      {
-        "username": "Captain Marvel", // must not exist already in the `users` table
-        "password": "foobar"          // needs to be hashed before it's saved
-      }
+function validateRequestBody(req, res, next) {
+  const { username, password } = req.body;
+  if (!username || !password) {
+    return res.status(400).json({ message: 'Username and password required' });
+  }
+  next();
+}
 
-    2- On SUCCESSFUL registration,
-      the response body should have `id`, `username` and `password`:
-      {
-        "id": 1,
-        "username": "Captain Marvel",
-        "password": "2a$08$jG.wIGR2S4hxuyWNcBf9MuoC4y0dNy7qC/LbmtuFBSdIhWks2LhpG"
-      }
 
-    3- On FAILED registration due to `username` or `password` missing from the request body,
-      the response body should include a string exactly as follows: "username and password required".
+async function checkUsernameAvailability(req, res, next) {
+  const { username } = req.body;
+  try {
+    const existingUser = await db.getUserByUsername(username);
+    if (existingUser) {
+      return res.status(400).json({ message: 'Username already taken' });
+    }
+    next();
+  } catch (error) {
+    next(error);
+  }
+}
 
-    4- On FAILED registration due to the `username` being taken,
-      the response body should include a string exactly as follows: "username taken".
-  */
+
+router.post('/register', validateRequestBody, checkUsernameAvailability, async (req, res, next) => {
+  const { username, password } = req.body;
+
+  try {
+    
+    const hashedPassword = await bcrypt.hash(password, 8);
+
+    
+    const newUser = await db.createUser({ username, password: hashedPassword });
+
+    
+    res.status(201).json({
+      id: newUser.id,
+      username: newUser.username,
+    });
+  } catch (error) {
+    next(error);
+  }
 });
 
-router.post('/login', (req, res) => {
-  res.end('implement login, please!');
-  /*
-    IMPLEMENT
-    You are welcome to build additional middlewares to help with the endpoint's functionality.
 
-    1- In order to log into an existing account the client must provide `username` and `password`:
-      {
-        "username": "Captain Marvel",
-        "password": "foobar"
-      }
+router.post('/login', validateRequestBody, async (req, res, next) => {
+  const { username, password } = req.body;
 
-    2- On SUCCESSFUL login,
-      the response body should have `message` and `token`:
-      {
-        "message": "welcome, Captain Marvel",
-        "token": "eyJhbGciOiJIUzI ... ETC ... vUPjZYDSa46Nwz8"
-      }
+  try {
+    const existingUser = await db.getUserByUsername(username);
+    if (!existingUser) {
+      return res.status(401).json({ message: 'Invalid credentials' });
+    }
 
-    3- On FAILED login due to `username` or `password` missing from the request body,
-      the response body should include a string exactly as follows: "username and password required".
+    
+    const passwordMatch = await bcrypt.compare(password, existingUser.password);
+    if (!passwordMatch) {
+      return res.status(401).json({ message: 'Invalid credentials' });
+    }
 
-    4- On FAILED login due to `username` not existing in the db, or `password` being incorrect,
-      the response body should include a string exactly as follows: "invalid credentials".
-  */
+    
+    const token = jwt.sign(
+      { id: existingUser.id, username: existingUser.username },
+      SECRET_KEY,
+      { expiresIn: '1h' } 
+    );
+
+    res.status(200).json({
+      message: `Welcome, ${existingUser.username}`,
+      token,
+    });
+  } catch (error) {
+    next(error);
+  }
 });
 
 module.exports = router;
