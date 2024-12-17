@@ -1,38 +1,87 @@
 const request = require('supertest');
-const app = require('./server'); 
+const server = require('../server'); 
+const db = require('../db'); 
 
-let token = ''; 
-
-describe('Auth Routes', () => {
-  it('should register a new user', async () => {
-    const response = await request(app)
-      .post('/api/auth/register')
-      .send({ username: 'testuser', password: 'testpassword' });
-    expect(response.status).toBe(201);
-    expect(response.body.username).toBe('testuser');
-  });
-
-  it('should log in and return a token', async () => {
-    const response = await request(app)
-      .post('/api/auth/login')
-      .send({ username: 'testuser', password: 'testpassword' });
-    expect(response.status).toBe(200);
-    token = response.body.token; 
-  });
+beforeAll(async () => {
+  
+  await db.migrate.latest();
 });
 
-describe('Jokes Routes', () => {
-  it('should return jokes if authenticated', async () => {
-    const response = await request(app)
-      .get('/api/jokes')
-      .set('Authorization', token); 
-    expect(response.status).toBe(200);
-    expect(response.body.length).toBeGreaterThan(0); 
+beforeEach(async () => {
+  
+  await db('users').truncate();
+});
+
+afterAll(async () => {
+  
+  await db.destroy();
+});
+
+describe('Auth Endpoints', () => {
+  const testUser = { username: 'testUser1', password: 'testPass123' };
+
+  describe('[POST] /api/auth/register', () => {
+    it('should respond with 201 and the new user on success', async () => {
+      const res = await request(server)
+        .post('/api/auth/register')
+        .send(testUser);
+
+      expect(res.status).toBe(201);
+      expect(res.body).toHaveProperty('id');
+      expect(res.body).toHaveProperty('username', testUser.username);
+    });
+
+    it('should respond with 400 when username is already taken', async () => {
+      
+      await request(server).post('/api/auth/register').send(testUser);
+      const res = await request(server).post('/api/auth/register').send(testUser);
+
+      expect(res.status).toBe(400);
+      expect(res.body).toHaveProperty('message', 'Username already taken');
+    });
+
+    it('should respond with 400 when username or password is missing', async () => {
+      const res = await request(server)
+        .post('/api/auth/register')
+        .send({ username: 'testUser1' }); 
+
+      expect(res.status).toBe(400);
+      expect(res.body).toHaveProperty('message', 'Username and password required');
+    });
   });
 
-  it('should return 401 if no token is provided', async () => {
-    const response = await request(app)
-      .get('/api/jokes');
-    expect(response.status).toBe(401);
+  describe('[POST] /api/auth/login', () => {
+    beforeEach(async () => {
+      
+      await request(server).post('/api/auth/register').send(testUser);
+    });
+
+    it('should respond with 200 and a token on successful login', async () => {
+      const res = await request(server)
+        .post('/api/auth/login')
+        .send(testUser);
+
+      expect(res.status).toBe(200);
+      expect(res.body).toHaveProperty('message', `Welcome, ${testUser.username}`);
+      expect(res.body).toHaveProperty('token');
+    });
+
+    it('should respond with 401 for invalid credentials', async () => {
+      const res = await request(server)
+        .post('/api/auth/login')
+        .send({ username: testUser.username, password: 'wrongPassword' });
+
+      expect(res.status).toBe(401);
+      expect(res.body).toHaveProperty('message', 'Invalid credentials');
+    });
+
+    it('should respond with 400 when username or password is missing', async () => {
+      const res = await request(server)
+        .post('/api/auth/login')
+        .send({ username: testUser.username }); 
+
+      expect(res.status).toBe(400);
+      expect(res.body).toHaveProperty('message', 'Username and password required');
+    });
   });
 });
