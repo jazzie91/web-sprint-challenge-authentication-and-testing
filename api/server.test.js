@@ -75,13 +75,14 @@ describe('Auth Endpoints', () => {
       expect(res.body).toHaveProperty('message', 'Invalid credentials');
     });
 
-    it('should respond with 400 when username or password is missing', async () => {
+    it('should respond with 400 when password is missing', async () => {
       const res = await request(server)
         .post('/api/auth/login')
-        .send({ username: testUser.username }); 
-
+        .send({ username: testUser.username });
+    
       expect(res.status).toBe(400);
       expect(res.body).toHaveProperty('message', 'Username and password required');
     });
+    
   });
 });
