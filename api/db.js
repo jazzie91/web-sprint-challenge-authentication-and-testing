@@ -1,13 +1,14 @@
-const db = require('./connection'); 
-
+const users = [];
 
 async function getUserByUsername(username) {
-  return db('users').where({ username }).first();
+  return users.find(user => user.username === username);
 }
 
-
-async function createUser(user) {
-  const [id] = await db('users').insert(user); 
-  return db('users').where({ id }).first(); 
+async function createUser({ username, password }) {
+  const newUser = { id: users.length + 1, username, password };
+  users.push(newUser);
+  return newUser;
 }
+
 module.exports = { getUserByUsername, createUser };
+// 
