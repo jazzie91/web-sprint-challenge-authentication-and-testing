@@ -1,20 +1,16 @@
 const request = require('supertest');
-const server = require('../server'); 
-const db = require('../db'); 
-
-beforeAll(async () => {
-  
-  await db.migrate.latest();
-});
+const server = require('./server'); 
+const db = require('./db');  
 
 beforeEach(async () => {
   
-  await db('users').truncate();
+  if (db.users && Array.isArray(db.users)) {
+    db.users.length = 0;  
+  }
 });
 
 afterAll(async () => {
   
-  await db.destroy();
 });
 
 describe('Auth Endpoints', () => {
@@ -32,7 +28,6 @@ describe('Auth Endpoints', () => {
     });
 
     it('should respond with 400 when username is already taken', async () => {
-      
       await request(server).post('/api/auth/register').send(testUser);
       const res = await request(server).post('/api/auth/register').send(testUser);
 
@@ -43,7 +38,7 @@ describe('Auth Endpoints', () => {
     it('should respond with 400 when username or password is missing', async () => {
       const res = await request(server)
         .post('/api/auth/register')
-        .send({ username: 'testUser1' }); 
+        .send({ username: 'testUser1' });  
 
       expect(res.status).toBe(400);
       expect(res.body).toHaveProperty('message', 'Username and password required');
@@ -52,7 +47,6 @@ describe('Auth Endpoints', () => {
 
   describe('[POST] /api/auth/login', () => {
     beforeEach(async () => {
-      
       await request(server).post('/api/auth/register').send(testUser);
     });
 
@@ -75,14 +69,13 @@ describe('Auth Endpoints', () => {
       expect(res.body).toHaveProperty('message', 'Invalid credentials');
     });
 
-    it('should respond with 400 when password is missing', async () => {
+    it('should respond with 400 when username or password is missing', async () => {
       const res = await request(server)
         .post('/api/auth/login')
-        .send({ username: testUser.username });
-    
+        .send({ username: testUser.username }); 
+
       expect(res.status).toBe(400);
       expect(res.body).toHaveProperty('message', 'Username and password required');
     });
-    
   });
 });
