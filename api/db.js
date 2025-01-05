@@ -7,6 +7,7 @@ async function getUserByUsername(username) {
   return users.find(user => user.username === username) || null;
 }
 
+
 async function createUser({ username, password }) {
   
   const hashedPassword = await bcrypt.hash(password, 10);
