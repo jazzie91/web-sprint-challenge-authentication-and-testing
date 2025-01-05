@@ -28,7 +28,9 @@ router.post('/register', async (req, res, next) => {
       return res.status(400).json({ message: 'Username already taken' });
     }
 
+    
     const hashedPassword = await bcrypt.hash(password, 8);
+
     const newUser = await db.createUser({ username, password: hashedPassword });
 
     res.status(201).json({
@@ -66,7 +68,7 @@ router.post('/login', validateRequestBody, async (req, res, next) => {
       token,
     });
   } catch (error) {
-    next(error);
+    next(error); 
   }
 });
 
