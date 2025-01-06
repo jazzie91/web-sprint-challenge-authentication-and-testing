@@ -41,67 +41,74 @@ const loginLimiter = rateLimit({
 });
 
 
-router.post('/register', validateRequestBody, async (req, res, next) => {
+router.post('/register', async (req, res, next) => {
   const { username, password } = req.body;
 
+  
+  if (!username || !password) {
+    return res.status(400).json({ message: 'Username and password required' });
+  }
+
   try {
-    console.log('[Register] Checking if username exists:', username);
+    
     const existingUser = await db.getUserByUsername(username);
     if (existingUser) {
-      console.log('[Register] Username already taken:', username);
       return res.status(400).json({ message: 'Username already taken' });
     }
 
-    console.log('[Register] Hashing password for:', username);
-    const hashedPassword = await bcrypt.hash(password, 10);
+    
+    const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
+
+    
     const newUser = await db.createUser({ username, password: hashedPassword });
 
-    console.log('[Register] User created successfully:', newUser);
+    
     res.status(201).json({
       id: newUser.id,
       username: newUser.username,
     });
   } catch (error) {
-    console.error('[Register] Error during user creation:', error);
+    console.error('Error creating user:', error.message); 
     res.status(500).json({ message: 'Internal server error' });
-    next(error);
   }
 });
 
 
 
-router.post('/login', loginLimiter, validateRequestBody, async (req, res, next) => {
+router.post('/login', async (req, res, next) => {
   const { username, password } = req.body;
 
+  if (!username || !password) {
+    return res.status(400).json({ message: 'Username and password required' });
+  }
+
   try {
-    console.log(`[Login] Fetching user by username: ${username}`);
     const existingUser = await db.getUserByUsername(username);
     if (!existingUser) {
-      console.log(`[Login] User not found: ${username}`);
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
-    console.log(`[Login] Comparing password for user: ${username}`);
     const passwordMatch = await bcrypt.compare(password, existingUser.password);
     if (!passwordMatch) {
-      console.log(`[Login] Password mismatch for user: ${username}`);
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
-    console.log(`[Login] Generating token for user: ${username}`);
     const token = jwt.sign(
       { id: existingUser.id, username: existingUser.username },
       SECRET_KEY,
-      { algorithm: 'HS256', expiresIn: '1h' }
+      { expiresIn: '1h'}
     );
 
+    
     res.status(200).json({
       message: `Welcome, ${existingUser.username}`,
       token,
     });
   } catch (error) {
-    console.error('[Login] Error occurred:', error);
-    next(error);
+    
+    console.error('Login error:', error);
+    
+    res.status(500).json({ message: 'Internal server error' });
   }
 });
 
