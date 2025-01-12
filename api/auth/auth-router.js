@@ -2,17 +2,22 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const rateLimit = require('express-rate-limit');
-const db = require('../db'); 
+const db = require('../db');
 
 const router = express.Router();
 const SECRET_KEY = process.env.JWT_SECRET || 'fallback-secret';
 const SALT_ROUNDS = process.env.NODE_ENV === 'production' ? 12 : 10;
 
 
+function sendError(res, statusCode, message) {
+  return res.status(statusCode).json({ message });
+}
+
+
 function validateRequestBody(req, res, next) {
   const { username, password } = req.body;
   if (!username || !password) {
-    return res.status(400).json({ message: 'Username and password required' });
+    return sendError(res, 400, 'Username and password required');
   }
   next();
 }
@@ -21,12 +26,12 @@ function validateRequestBody(req, res, next) {
 function authenticateToken(req, res, next) {
   const token = req.headers.authorization?.split(' ')[1];
   if (!token) {
-    return res.status(401).json({ message: 'Access denied, no token provided' });
+    return sendError(res, 401, 'Access denied, no token provided');
   }
 
   jwt.verify(token, SECRET_KEY, (err, user) => {
     if (err) {
-      return res.status(403).json({ message: 'Invalid token' });
+      return sendError(res, 403, 'Invalid token');
     }
     req.user = user;
     next();
@@ -41,13 +46,8 @@ const loginLimiter = rateLimit({
 });
 
 
-router.post('/register', async (req, res, next) => {
+router.post('/register', validateRequestBody, async (req, res) => {
   const { username, password } = req.body;
-
-  
-  if (!username || !password) {
-    return res.status(400).json({ message: 'Username and password required' });
-  }
 
   try {
     
@@ -68,35 +68,36 @@ router.post('/register', async (req, res, next) => {
       username: newUser.username,
     });
   } catch (error) {
-    console.error('Error creating user:', error.message); 
+    
+    console.error('Error creating user:', error.message);
+    
     res.status(500).json({ message: 'Internal server error' });
   }
 });
 
 
 
-router.post('/login', async (req, res, next) => {
+router.post('/login', validateRequestBody, loginLimiter, async (req, res) => {
   const { username, password } = req.body;
 
-  if (!username || !password) {
-    return res.status(400).json({ message: 'Username and password required' });
-  }
-
   try {
+   
     const existingUser = await db.getUserByUsername(username);
     if (!existingUser) {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
+    
     const passwordMatch = await bcrypt.compare(password, existingUser.password);
     if (!passwordMatch) {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
+    
     const token = jwt.sign(
       { id: existingUser.id, username: existingUser.username },
       SECRET_KEY,
-      { expiresIn: '1h'}
+      { expiresIn: '1h' } 
     );
 
     
@@ -105,9 +106,7 @@ router.post('/login', async (req, res, next) => {
       token,
     });
   } catch (error) {
-    
     console.error('Login error:', error);
-    
     res.status(500).json({ message: 'Internal server error' });
   }
 });
@@ -120,7 +119,7 @@ router.get('/me', authenticateToken, (req, res) => {
 
 router.use((err, req, res, next) => {
   console.error('Unhandled error:', err.stack || err);
-  res.status(500).json({ message: 'Internal server error' });
+  sendError(res, 500, 'Internal server error');
 });
 
 module.exports = router;
