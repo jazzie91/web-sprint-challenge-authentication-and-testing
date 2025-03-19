@@ -1,11 +1,10 @@
 const request = require('supertest');
 const server = require('./server'); 
-const db = require('./db'); 
 const bcrypt = require('bcryptjs'); 
-
+const
 const resetDatabase = () => {
-  if (db.users && Array.isArray(db.users)) {
-    db.users.length = 0; 
+  if (newUser && Array.isArray(users)) {
+    users.length = 0; 
   }
 };
 
@@ -55,12 +54,12 @@ describe('Auth Endpoints', () => {
     it('should hash the password before storing in the database', async () => {
       await request(server).post('/api/auth/register').send(testUser);
 
-      if (!db.users) {
+      if (!newUser) {
         console.error('Database is not initialized');
         return;
       }
 
-      const storedUser = db.users.find((user) => user.username === testUser.username);
+      const storedUser = user.find((user) => user.username === testUser.username);
       expect(storedUser).toBeDefined();
       
       
