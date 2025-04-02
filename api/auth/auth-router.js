@@ -1,53 +1,49 @@
-const express = require("express")
-const bcrypt = require ('bcryptjs')
-const router = express.Router()
+const router = require('express').Router();
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const db = require('../../data/dbConfig');
+const User = require('../users/users-model');
+const { validateCredentials } = require('./validate');
+const { checkUsernameFree, checkUsernameExists } = require('./auth-middleware');
+const { JWT_SECRET } = require('../secrets');
 
-
-router.post("/register", async (req, res, next) => {
+// Register Route
+router.post('/register', validateCredentials, checkUsernameFree, async (req, res) => {
   try {
-  const {username, password} = req.body
-  const hash = bcrypt.hashSync(password, 8)
-  const newUser = { username, password: hash }
-  const access = await  user.add(newUser)
-    res.status(201).json({
-      message: `register working, ${access.username}`
-    })
-    } catch (err) {
-      next(err)
-    }
-  })
- 
+    const { username, password } = req.body;
+    const hashedPassword = bcrypt.hashSync(password, 8);
+    const newUser = await User.add({ username, password: hashedPassword });
+    res.status(201).json(newUser);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
 
-router.post("/login", async (req, res, next) => {
-  try{
-    const {username, password} = req.body
-    const [user] = await user. findBy({ username })
-    if ( user && bcryptjs.compareSync(password, user.password)) {
+// Login Route
+router.post('/login', validateCredentials, checkUsernameExists, (req, res) => {
+  try {
+    if (bcrypt.compareSync(req.body.password, req.user.password)) {
+      const token = buildToken(req.user);
+      res.json({
+        message: `${req.user.username} is back`,
+        token,
+      });
     } else {
-      next ({ status: 401, message: 'bad credentials'})
+      res.status(401).json({ message: 'invalid credentials' });
     }
   } catch (err) {
-    next(err)
+    res.status(500).json({ message: err.message });
   }
-  })
-  
+});
 
-router.get("/logout", async (req, res, next) => {
-  if (req.session.user) {
-    const { username } = req.session.user
-    req.session.destroy(err => {
-      if (err) {
-        res.json({ message: `try again, ${username}`})
-      } else {
-        res.set('Set-Cookie', 'knuckles=; SameSite=Strict; Path=/; Expires=Thu, 20 Mar 2025 00:00:00')
-        res.json({ message: `goodbye, ${username}`})
-      }
-    })
-  } else {
-  res.json({ message: 'access denied'})
-  }
-  })
- 
-
+// Token Builder
+function buildToken(user) {
+  const payload = {
+    subject: user.id,
+    username: user.username,
+  };
+  const options = { expiresIn: '1d' };
+  return jwt.sign(payload, JWT_SECRET, options);
+}
 
 module.exports = router;
